@@ -63,19 +63,23 @@ function out(s) {
 
 
 
-var Es, compNames, initTime, runTime, runCt, runningSum, iterating
+var Es, compNames, initTime, runTime, runCt, runningSum, iterating, procs
 
+// init everything needed for a batch of benchmark iterations
 function startTest() {
     var t = performance.now()
     var mgr = cachedMgr
     compNames = []
     Es = []
+    procs = []
+    // create a bunch of components
     for (var i=0; i<numCs; ++i) {
         compNames[i] = 'comp_'+String(i)
         var obj = { state: {value:1} }
         obj.state[String(Math.random())] = 1
         mgr.addComponent(compNames[i], obj)
     }
+    // create a bunch of entities and randomly add components
     for (var i=0; i<numEs; ++i) {
         var n = (numCs * Math.random())|0
         var toAdd = []
@@ -84,31 +88,41 @@ function startTest() {
         }
         Es.push( mgr.createEntity(toAdd) )
     }
+    // create a bunch of processes that sum up state properties
+    for (var i=0; i<numCs; ++i) {
+        var o = {}
+        o.name = compNames[i]
+        o.update = function(dt) {
+            var sum = 0
+            var entList = mgr.getComponentsData(this.name)
+            var ids = Object.keys(entList)
+            for (var j=0; j<ids.length; ++j) {
+                sum += entList[ids[j]].value|0
+            }
+            runningSum += sum|0
+        }
+        procs.push(o)
+        mgr.addProcessor(o)
+    }
+    // finish up and iterate
     initTime = performance.now() - t
     iterating = true
     runTime = runCt = runningSum = 0
     requestAnimationFrame(iterateTest)
 }
+
+// iteration to call each frame between start and stop
 function iterateTest() {
     if (!iterating) return
     var t = performance.now()
-    runningSum += sumOverComponents(cachedMgr, compNames)
+    cachedMgr.update()
+    // runningSum += sumOverComponents(cachedMgr, compNames)
     runTime += performance.now() - t
     runCt++
     if (iterating) requestAnimationFrame(iterateTest)
 }
-// core iteration fcn, akin to running one process for each component
-function sumOverComponents(mgr, cnames) {
-    var sum = 0
-    for (var i=0; i<cnames.length; ++i) {
-        var entList = mgr.getComponentsData(cnames[i])
-        var ids = Object.keys(entList)
-        for (var j=0; j<ids.length; ++j) {
-            sum += entList[ids[j]].value
-        }
-    }
-    return sum|0
-}
+
+// finish the set of iterations
 function endTest() {
     iterating = false
     // tear down
@@ -120,6 +134,10 @@ function endTest() {
         cachedMgr.removeEntity(Es[i])
     }
     Es.length = 0
+    while(procs.length) {
+        cachedMgr.removeProcessor(procs.pop())
+    }
+    procs.length = 0
 }
 
 
