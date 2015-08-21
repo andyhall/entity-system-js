@@ -96,6 +96,7 @@ define(function () {
          *   this.entityComponentData[componentId]
          */
         this.entityComponentData = {};
+        this.entityComponentMap = {};
 
         // The ordered list of processors known by this manager.
         this.processors = [];
@@ -138,13 +139,13 @@ define(function () {
      */
     EntityManager.prototype.removeEntity = function (id) {
         // Remove all data for this entity.
-        for (var comp in this.entityComponentData) {
-            if (this.entityComponentData.hasOwnProperty(comp)) {
-                if (this.entityComponentData[comp][id]) {
-                    delete this.entityComponentData[comp][id];
-                }
+        var toRemove = [];
+        for (var comp in this.entityComponentMap) {
+            if (this.entityComponentMap[comp].hasOwnProperty(id)) {
+                toRemove.push(comp);
             }
         }
+        this.removeComponentsFromEntity(toRemove, id);
 
         // Remove the entity from the list of known entities.
         this.entities.splice(this.entities.indexOf(id), 1);
@@ -164,6 +165,8 @@ define(function () {
      */
     EntityManager.prototype.addComponent = function (id, component) {
         this.components[id] = component;
+        this.entityComponentMap[id] = {};
+        this.entityComponentData[id] = [];
         return this;
     };
 
@@ -175,6 +178,7 @@ define(function () {
      */
     EntityManager.prototype.removeComponent = function (id) {
         delete this.components[id];
+        delete this.entityComponentMap[id];
         delete this.entityComponentData[id];
         return this;
     };
@@ -215,10 +219,6 @@ define(function () {
         // entity and instanciate the component's states.
         for (i = componentIds.length - 1; i >= 0; i--) {
             comp = componentIds[i];
-
-            if (!this.entityComponentData[comp]) {
-                this.entityComponentData[comp] = {};
-            }
 
             var newCompState = null;
 
@@ -263,7 +263,10 @@ define(function () {
             // Store the entity's ID so it's easier to find other components for that entity.
             newCompState.__id = entityId;
 
-            this.entityComponentData[comp][entityId] = newCompState;
+            var map = this.entityComponentMap[comp]; 
+            var arr = this.entityComponentData[comp];
+            map[entityId] = arr.length;
+            arr.push(newCompState);
         }
 
         return this;
@@ -295,10 +298,15 @@ define(function () {
         for (i = componentIds.length - 1; i >= 0; i--) {
             comp = componentIds[i];
 
-            if (this.entityComponentData[comp]) {
-                if (this.entityComponentData[comp][entityId]) {
-                    delete this.entityComponentData[comp][entityId];
-                }
+            var datMap = this.entityComponentMap[comp];
+            var datArr = this.entityComponentData[comp];
+            var id = datMap[entityId]
+            if (datArr[id]) {
+                // splice entity data from array and correct map
+                datArr[id] = datArr.pop()
+                var movedID = datArr[id].__id
+                datMap[movedID] = id
+                delete datMap[entityId]
             }
         }
 
@@ -315,18 +323,17 @@ define(function () {
      * @return {object} - Component data of one entity.
      */
     EntityManager.prototype.getComponentDataForEntity = function (componentId, entityId) {
-        if (!(componentId in this.components)) {
+        var datMap = this.entityComponentMap[componentId];
+        var datArr = this.entityComponentData[componentId];
+        if (!datMap) {
             throw new Error('Trying to use unknown component: ' + componentId);
         }
 
-        if (
-            !this.entityComponentData.hasOwnProperty(componentId) ||
-            !this.entityComponentData[componentId].hasOwnProperty(entityId)
-        ) {
+        if (!datMap.hasOwnProperty(entityId)) {
             throw new Error('No data for component ' + componentId + ' and entity ' + entityId);
         }
 
-        return this.entityComponentData[componentId][entityId];
+        return datArr[ datMap[entityId] ];
     };
 
     /**
@@ -356,13 +363,10 @@ define(function () {
      * @return {array} - List of component data for one component.
      */
     EntityManager.prototype.getComponentsData = function (componentId) {
-        if (!(componentId in this.components)) {
+        if (!this.entityComponentData.hasOwnProperty(componentId)) {
             throw new Error('Trying to use unknown component: ' + componentId);
         }
 
-        if (!this.entityComponentData.hasOwnProperty(componentId)) {
-            return [];
-        }
 
         return this.entityComponentData[componentId];
     };
@@ -375,14 +379,12 @@ define(function () {
      * @return {boolean} - True if the entity has the component.
      */
     EntityManager.prototype.entityHasComponent = function (entityId, componentId) {
-        if (!(componentId in this.components)) {
+        var map = this.entityComponentMap[componentId]; 
+        if (!map) {
             throw new Error('Trying to use unknown component: ' + componentId);
         }
 
-        return (
-            this.entityComponentData.hasOwnProperty(componentId) &&
-            this.entityComponentData[componentId].hasOwnProperty(entityId)
-        );
+        return map.hasOwnProperty(entityId);
     };
 
     //=========================================================================
