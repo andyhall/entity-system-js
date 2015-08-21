@@ -94,10 +94,9 @@ function startTest() {
         o.name = compNames[i]
         o.update = function(dt) {
             var sum = 0
-            var entList = mgr.getComponentsData(this.name)
-            var ids = Object.keys(entList)
-            for (var j=0; j<ids.length; ++j) {
-                sum += entList[ids[j]].value|0
+            var entArr = mgr.getComponentsData(this.name)
+            for (var j=0; j<entArr.length; ++j) {
+                sum += entArr[j].value|0
             }
             runningSum += sum|0
         }
