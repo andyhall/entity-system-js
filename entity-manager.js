@@ -302,10 +302,15 @@ define(function () {
             var datArr = this.entityComponentData[comp];
             var id = datMap[entityId]
             if (datArr[id]) {
-                // splice entity data from array and correct map
-                datArr[id] = datArr.pop()
-                var movedID = datArr[id].__id
-                datMap[movedID] = id
+                if (id==datArr.length-1) {
+                    // just remove last entry
+                    datArr.pop();
+                } else {
+                    // swap last entry in place of one to splice, and fix map 
+                    datArr[id] = datArr.pop()
+                    var movedID = datArr[id].__id
+                    datMap[movedID] = id
+                }
                 delete datMap[entityId]
             }
         }
